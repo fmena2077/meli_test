@@ -708,8 +708,8 @@ class modeloMeli:
         
         folder2save = os.path.join( os.getcwd(), "Plots")    
         lgb.plot_importance(gbm, figsize=(10,10))
-        plt.savefig(folder2save + "/FeatureImportance_LGB.png", dpi = 100, bbox_inches = "tight")        
-        plt.close()
+        # plt.savefig(folder2save + "/FeatureImportance_LGB.png", dpi = 100, bbox_inches = "tight")        
+        # plt.close()
         
     
         """ Explain lgb model """
@@ -717,7 +717,7 @@ class modeloMeli:
         explainer = shap.TreeExplainer(gbm)
         shap_values = explainer.shap_values(dftest3)
         shap.summary_plot(shap_values, dftest3)
-        plt.savefig(folder2save + "/SHAP_LGB.png", dpi = 100, bbox_inches = "tight")        
+        # plt.savefig(folder2save + "/SHAP_LGB.png", dpi = 100, bbox_inches = "tight")        
         
         
     
@@ -839,25 +839,9 @@ class modeloMeli:
         
         import lightgbm as lgb
         lgb_train = lgb.Dataset(dftrain3, label = ytrain)
-        lgb_eval = lgb.Dataset(dftest3, label = ytest, reference=lgb_train)
 
         # specify your configurations as a dict
-        params = {
-            'n_estimators':1000,
-            'boosting_type': 'gbdt',
-            'objective': 'binary',
-            'metric': 'binary_logloss',
-            'num_leaves': 100,
-            'learning_rate': 0.05,
-            'feature_fraction': 0.7,
-            'bagging_fraction': 0.8,
-            'bagging_freq': 10,
-            'verbose': 0,
-            'random_state':42
-        }    
-            
-
-        print('Starting training...')
+        
         # feature_name and categorical_feature
         params = {
             'n_estimators':1000,
