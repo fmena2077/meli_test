@@ -71,6 +71,7 @@ if __name__ == "__main__":
 
     
     dfres = meli.find_best_model(dftrain, dftest, ytrain, ytest)
+    dfres.to_csv(os.path.join( os.getcwd(), "Models", "metrics_models.csv"), index = False)
 
 
 

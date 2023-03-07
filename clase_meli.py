@@ -42,7 +42,7 @@ import seaborn as sns
 from collections.abc import MutableMapping
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
-from sklearn.metrics import accuracy_score, roc_auc_score, confusion_matrix, classification_report
+from sklearn.metrics import accuracy_score, roc_auc_score, confusion_matrix, classification_report, f1_score
 from sklearn.linear_model import LogisticRegressionCV
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import LinearSVC
@@ -510,8 +510,10 @@ class modeloMeli:
         categories = ['seller_address_state_name', 'seller_address_city_name', 'shipping_mode', 'listing_type_id',\
                       'buying_mode', 'status','seller_frequency', 'category_frequency', 'garantia',"titulo"]
         
-        dftrain.drop(["condition"], axis = 1, inplace = True)
-        dftest.drop(["condition"], axis = 1, inplace = True)
+        if "condition" in dftrain.columns:
+            dftrain.drop(["condition"], axis = 1, inplace = True)
+        if "condition" in dftest.columns:            
+            dftest.drop(["condition"], axis = 1, inplace = True)
     
         
     
@@ -575,10 +577,12 @@ class modeloMeli:
         print("roc_auc: " + str(roc_auc_score(ytest, ypred)))
         print("confussion matrix: " + str( confusion_matrix(ytest, ypred) )    )
         print(classification_report(ytest, ypred))
+        print("f1 score " + str(f1_score(ytest, ypred)))
         
         
-        df_logreg = pd.DataFrame({"acc":np.round(accuracy_score(ytest, ypred),2),
-                      "roc_auc": np.round(roc_auc_score(ytest, ypred),2),
+        df_logreg = pd.DataFrame({"acc":np.round(accuracy_score(ytest, ypred),3),
+                      "roc_auc": np.round(roc_auc_score(ytest, ypred),3),
+                      "f1_score": np.round(f1_score(ytest, ypred),3),
                           }, index = ["log_reg"])
         
         
@@ -597,9 +601,11 @@ class modeloMeli:
         print("roc_auc: " + str(roc_auc_score(ytest, ypred)))
         print("confussion_matrix: " + str( confusion_matrix(ytest, ypred) )    )
         print(classification_report(ytest, ypred))
+        print("f1 score " + str(f1_score(ytest, ypred)))
         
         df_rf = pd.DataFrame({"acc":np.round(accuracy_score(ytest, ypred),3),
                       "roc_auc": np.round(roc_auc_score(ytest, ypred),3),
+                      "f1_score": np.round(f1_score(ytest, ypred),3),
                           }, index = ["RF"])
         
     
@@ -627,9 +633,11 @@ class modeloMeli:
         print("roc_auc: " + str(roc_auc_score(ytest, ypred)))
         print("confussion_matrix: " + str( confusion_matrix(ytest, ypred) )    )
         print(classification_report(ytest, ypred))
+        print("f1 score " + str(f1_score(ytest, ypred)))
         
-        df_svc = pd.DataFrame({"acc":np.round(accuracy_score(ytest, ypred),2),
-                      "roc_auc": np.round(roc_auc_score(ytest, ypred),2),
+        df_svc = pd.DataFrame({"acc":np.round(accuracy_score(ytest, ypred),3),
+                      "roc_auc": np.round(roc_auc_score(ytest, ypred),3),
+                      "f1_score": np.round(f1_score(ytest, ypred),3),
                           }, index = ["SVC"])
         
     
@@ -644,8 +652,7 @@ class modeloMeli:
 
         
         
-        lgb_train = lgb.Dataset(dftrain3, label = ytrain)
-        lgb_eval = lgb.Dataset(dftest3, label = ytest, reference=lgb_train)
+        lgb_train = lgb.Dataset(dftrain3, label = ytrain)        
     
         # specify your configurations as a dict
         params = {
@@ -654,13 +661,15 @@ class modeloMeli:
             'objective': 'binary',
             'metric': 'binary_logloss',
             'num_leaves': 100,
-            'learning_rate': 0.06,
-            'feature_fraction': 0.7,
+            'learning_rate': 0.05,
+            'feature_fraction': 0.6,
             'bagging_fraction': 0.8,
             'bagging_freq': 10,
             'verbose': 0,
+            'is_unbalance': True,
             'random_state':42
         }    
+    
             
     
         print('Starting training lgb...')
@@ -668,20 +677,18 @@ class modeloMeli:
         gbm = lgb.train(params,
                     lgb_train,
                     num_boost_round=100,
-                    valid_sets=lgb_eval ,  # eval training data
                     feature_name=list(dftrain3.columns),
                     #callbacks=[lgb.early_stopping(stopping_rounds=20)],
                     categorical_feature=['seller_address_state_name', 'seller_address_city_name',
                            'shipping_mode', 'listing_type_id', 'buying_mode', 'status',
-                           'seller_frequency', 'category_frequency', "garantia"]
+                           'seller_frequency', 'category_frequency', "garantia", "titulo"]
                     )    
         
     
         """ LightGBM returns the probability of belonging to a class. 
-        Since there is a slight unbalance in the classes, we use the class
-        proportions to choose one of the two classes"""
+        One needs to convert to one of the two classes """
         ypred = gbm.predict(dftest3)
-        ypred = [1 if y>0.55 else 0 for y in ypred]
+        ypred = [1 if y>0.5 else 0 for y in ypred]
     
     
         print("lightgbm score")
@@ -689,9 +696,11 @@ class modeloMeli:
         print("roc_auc: " + str(100 * roc_auc_score(ytest, ypred)))
         print("confussion_matrix: " + str( confusion_matrix(ytest, ypred) )    )
         print(classification_report(ytest, ypred))
+        print("f1 score " + str(f1_score(ytest, ypred)))
         
-        df_lgb = pd.DataFrame({"acc":100 * np.round(accuracy_score(ytest, ypred),3),
-                      "roc_auc": 100 * np.round(roc_auc_score(ytest, ypred),3),
+        df_lgb = pd.DataFrame({"acc":np.round(accuracy_score(ytest, ypred),3),
+                      "roc_auc": np.round(roc_auc_score(ytest, ypred),3),
+                      "f1_score": np.round(f1_score(ytest, ypred),3),
                           }, index = ["LGB"])
         
         
@@ -706,8 +715,8 @@ class modeloMeli:
         """ Explain lgb model """
         
         explainer = shap.TreeExplainer(gbm)
-        shap_values = explainer.shap_values(dftest2)
-        shap.summary_plot(shap_values, dftest2)
+        shap_values = explainer.shap_values(dftest3)
+        shap.summary_plot(shap_values, dftest3)
         plt.savefig(folder2save + "/SHAP_LGB.png", dpi = 100, bbox_inches = "tight")        
         
         
@@ -725,10 +734,12 @@ class modeloMeli:
         print("roc_auc: " + str(roc_auc_score(ytest, ypred)))
         print("CM: " + str( confusion_matrix(ytest, ypred) )    )
         print(classification_report(ytest, ypred))
+        print("f1 score " + str(f1_score(ytest, ypred)))
     
     
-        df_xgb = pd.DataFrame({"acc":np.round(accuracy_score(ytest, ypred),2),
-                      "roc_auc": np.round(roc_auc_score(ytest, ypred),2),
+        df_xgb = pd.DataFrame({"acc":np.round(accuracy_score(ytest, ypred),3),
+                      "roc_auc": np.round(roc_auc_score(ytest, ypred),3),
+                      "f1_score": np.round(f1_score(ytest, ypred),3),
                           }, index = ["XGB"])
     
         
@@ -776,9 +787,11 @@ class modeloMeli:
         print("roc_auc: " + str(roc_auc_score(ytest, ypred)))
         print("confussion_matrix: " + str( confusion_matrix(ytest, ypred) )    )
         print(classification_report(ytest, ypred))
+        print("f1 score " + str(f1_score(ytest, ypred)))
     
-        df_tf = pd.DataFrame({"acc":np.round(accuracy_score(ytest, ypred),2),
-                      "roc_auc": np.round(roc_auc_score(ytest, ypred),2),
+        df_tf = pd.DataFrame({"acc":np.round(accuracy_score(ytest, ypred),3),
+                      "roc_auc": np.round(roc_auc_score(ytest, ypred),3),
+                      "f1_score": np.round(f1_score(ytest, ypred),3),
                           }, index = ["TF"])
     
     
@@ -846,20 +859,37 @@ class modeloMeli:
 
         print('Starting training...')
         # feature_name and categorical_feature
+        params = {
+            'n_estimators':1000,
+            'boosting_type': 'gbdt',
+            'objective': 'binary',
+            'metric': 'binary_logloss',
+            'num_leaves': 100,
+            'learning_rate': 0.05,
+            'feature_fraction': 0.6,
+            'bagging_fraction': 0.8,
+            'bagging_freq': 10,
+            'verbose': 0,
+            'is_unbalance': True,
+            'random_state':42
+        }    
+        
+            
+        
+        print('Starting training lgb...')
+        # feature_name and categorical_feature
         gbm = lgb.train(params,
                     lgb_train,
                     num_boost_round=100,
-                    valid_sets=lgb_eval ,  # eval training data
                     feature_name=list(dftrain3.columns),
                     #callbacks=[lgb.early_stopping(stopping_rounds=20)],
                     categorical_feature=['seller_address_state_name', 'seller_address_city_name',
                            'shipping_mode', 'listing_type_id', 'buying_mode', 'status',
                            'seller_frequency', 'category_frequency', "garantia", "titulo"]
                     )    
-        
 
         ypred = gbm.predict(dftest3)
-        ypred = [1 if y>0.54 else 0 for y in ypred]
+        ypred = [1 if y>0.5 else 0 for y in ypred]
 
 
         print("lightgbm score")
@@ -867,6 +897,7 @@ class modeloMeli:
         print("roc_auc: " + str(100 * roc_auc_score(ytest, ypred)))
         print("confussion_matrix: " + str( confusion_matrix(ytest, ypred) )    )
         print(classification_report(ytest, ypred))
+        print("f1 score " + str(f1_score(ytest, ypred)))
 
 
         # Save model
