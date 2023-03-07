@@ -32,7 +32,6 @@ The deliverables are:
 
 import os
 import json
-import gc
 from unidecode import unidecode
 import association_metrics as am
 from datetime import datetime, timezone
@@ -56,7 +55,7 @@ import joblib
 
 #%%
 
-
+# Functions to flatten the nested dictionaries
 def _flatten_dict_gen(d, parent_key, sep):
     for k, v in d.items():
         new_key = parent_key + sep + k if parent_key else k
@@ -94,7 +93,21 @@ class modeloMeli:
     @staticmethod
     def dict_to_df(x, i):
             
-        # 0. Convert items that are lists to dictionaries
+        """
+        Function to convert a dictionary into a dataframe
+        
+        Parameters
+        ----------
+        x: dict
+            dictionary with an item's data
+        i: int
+            number to use as index
+            
+        Returns
+        -------
+        The information in x as a dataframe
+        
+        """
         
         # 1. flatten the dictionary
         A = flatten_dict(x, sep = '_')
@@ -133,31 +146,25 @@ class modeloMeli:
     
         return pd.DataFrame(A, index = [i])
     
-    #%%
-    @staticmethod
-    def print_model_summary(nombre_modelo, model, classificationReport, confusionMatrix,train_set):
-        """    
-        Function to save the model parameters
-        -------
-        """    
-        date = datetime.now().strftime("%Y%m%d_%H%M")
-        
-        f = open('metrics_' + nombre_modelo+ '_'+date+'.txt', 'w')
-        f.write('Model: ' + nombre_modelo + '\n')
-        f.write('Metrics:'+ '\n')
-        f.write(str( classificationReport) + '\n')
-        f.write('Confussion Matrix:'+ '\n')
-        f.write( str( confusionMatrix) + '\n')
-        f.write('\n')
-        f.write('\n')
-        f.write( str( 'Features: \n') )
-        f.write('\n')
-        f.write(train_set)
-        f.close()
     
     #%%        
     @staticmethod
-    def feature_engineering(df_train, drop_outliers="no"):
+    def feature_engineering(df_train, drop_outliers=False):
+        """
+       Function to generate the new features that will be used during training
+       
+       Parameters
+       ----------
+       df_train: pandas dataframe
+           Dataframe with the item's information
+       drop_outliers: boolean
+           Drop outliers in the digits feature, optional
+           
+       Returns
+       -------
+       Dataframe with the new features
+       
+       """
         
     
         cols_meli = [x for x in df_train.columns if "non_meli" in x]
@@ -191,7 +198,7 @@ class modeloMeli:
     
         dfaux["descriptions"].fillna(0, inplace = True)
     
-    
+        #date features
         dfaux["days_since_last_updated"] = (datetime.now( timezone.utc) - pd.to_datetime(dfaux["last_updated"])).dt.days
         dfaux["days_since_created"] = (datetime.now( timezone.utc) - pd.to_datetime(dfaux["date_created"])).dt.days
         dfaux["difference_days"] = dfaux["days_since_created"]-dfaux["days_since_last_updated"]
@@ -199,7 +206,7 @@ class modeloMeli:
         
     
         
-        
+        #picture features
         dfaux["quality_per_pic"] = dfaux["sum_pictures_quality"]/dfaux["pictures"]
         dfaux["pictures"].fillna(0, inplace = True)    
         dfaux["quality_per_pic"].fillna(0, inplace = True)    
@@ -207,12 +214,13 @@ class modeloMeli:
         dfaux["avg_picture_quality"].fillna(0, inplace = True)    
         
         
-    
+        #payment in USD 
         dfaux["currency_id"].value_counts()
         dfaux["currency_USD"] = [1 if x=="USD" else 0 for x in dfaux["currency_id"]]
         dfaux.drop(["currency_id"], axis = 1, inplace = True)
     
     
+        #combinations of features
         dfaux["stop_minus_start"] = (dfaux["stop_time"] - dfaux["start_time"])
         dfaux["stop_div_start"] = dfaux["stop_time"]/dfaux["start_time"] - 1
     
@@ -268,7 +276,7 @@ class modeloMeli:
         dfaux.drop("category_id", axis = 1, inplace = True)
         
         
-        # State frequency    
+        # State frequency - create categories  
         #list(dfaux["seller_address_state_name"].value_counts().loc[dfaux["seller_address_state_name"].value_counts()<200].index)
         rare_states = ['San Juan','Salta','Misiones','Río Negro','Corrientes','Neuquén','La Pampa','Chaco','San Luis','Jujuy',
          'Formosa','Santiago del Estero','Santa Cruz','Catamarca','La Rioja','Tierra del Fuego','']
@@ -276,7 +284,7 @@ class modeloMeli:
         dfaux["seller_address_state_name"] = ["rare_state" if x in rare_states else x for x in dfaux["seller_address_state_name"]]
             
     
-        # City frequency
+        # City frequency - create categories
         common_cities = ['CABA','Palermo','Buenos Aires','Capital Federal','Mataderos','Caballito','Villa Crespo','capital federal']
         
         dfaux["seller_address_city_name"] = ["other_city" if x not in common_cities else x for x in dfaux["seller_address_city_name"]]
@@ -303,7 +311,7 @@ class modeloMeli:
         dfaux["warranty"] = dfaux["warranty"].apply(lambda x: remove_stopwords(x) )
     
     
-    
+        """ This commented code can be used for finding the most frequent words in the text
         # textnew = " ".join(dfaux.loc[ dfaux["condition"] == "new", "warranty"].values)
         # textused = " ".join(dfaux.loc[ dfaux["condition"] == "used", "warranty"].values)
     
@@ -314,7 +322,7 @@ class modeloMeli:
         # allWords = nltk.tokenize.word_tokenize(textused)
         # allWordDist = nltk.FreqDist(w.lower() for w in allWords)
         # #print( allWordDist.most_common(40) )
-    
+        """
     
         def garantia(text):
             "frequency of words"
@@ -333,7 +341,7 @@ class modeloMeli:
     
         dfaux["garantia"] = dfaux["warranty"].apply(garantia)
     
-            
+        #If the text has a digit    
         def number_getter(s):
             valor = 0
             
@@ -346,7 +354,7 @@ class modeloMeli:
             
         dfaux["digits"] = dfaux["warranty"].apply(number_getter)
     
-        if drop_outliers == "yes":
+        if drop_outliers:
             idx2drop = dfaux.loc[ (dfaux["digits"]==1) & (dfaux["condition"]=="used") ].index
             dfaux = dfaux.drop(idx2drop)
     
@@ -355,7 +363,7 @@ class modeloMeli:
     
     
     
-        # Title
+        # Title - similar analysis as with warranty
         dfaux["title"].fillna("no_title_info", inplace = True)
         dfaux["title"] = [unidecode(x.lower()) for x in dfaux["title"]]
         dfaux["title"] = dfaux["title"].apply(lambda x: remove_stopwords(x) )
@@ -402,6 +410,19 @@ class modeloMeli:
     #%%    
     @staticmethod
     def EDA(dfeatsog):
+        """
+        Function to plot different features vs the items' condition
+        Parameters
+        ----------        
+        dfeatsog: pandas dataframe
+            Dataframe with the items' information
+        
+        Returns
+        -------
+        Plots describing patterns in the items' condition
+        
+        """
+        
         dfeats = dfeatsog.copy()
         dfeats["new"] = np.where(dfeats["condition"]=="new", 1, 0)
     
@@ -464,6 +485,23 @@ class modeloMeli:
     #%%
     @staticmethod
     def find_best_model(dftrain, dftest, ytrain, ytest):
+        """
+        Function that trains trains several different models, and finds the one with best accuracy
+        Parameters
+        ----------
+        df_train : pandas DataFrame
+            Dataframe with the training set
+        df_test : pandas DataFrame
+            Dataframe with the testing set
+        ytrain : list
+            training label
+        ytest : list
+            testing label
+            
+        Returns
+        -------
+        DataFrame with the metrics for the models trained
+        """
         
         # One-Hot Encoding
         # Convert to category
@@ -479,8 +517,7 @@ class modeloMeli:
     
         dftrain2 = dftrain.copy()
         dftest2 = dftest.copy()
-        # dftrain = dftrain2.copy()
-        # dftest = dftest2.copy()
+        
         dic_ohes = {}
         for cat in categories:
             
@@ -750,6 +787,23 @@ class modeloMeli:
 #%%
     @staticmethod
     def save_lgbm_model(dftrain, dftest, ytrain, ytest):
+        """
+        Function that trains trains a LightGBM model and saves it with joblib
+        Parameters
+        ----------
+        dftrain : pandas DataFrame
+            Dataframe with the training set
+        dftest : pandas DataFrame
+            Dataframe with the testing set
+        ytrain : list
+            training label
+        ytest : list
+            testing label
+            
+        Returns
+        -------
+        LigthGBM model
+        """
 
         dftrain= dftrain.apply(lambda x: x.astype("category") if x.dtype == "O" else x)
         dftest = dftest.apply(lambda x: x.astype("category") if x.dtype == "O" else x)
@@ -768,8 +822,7 @@ class modeloMeli:
     
         dftrain3 = dftrain2.drop(["avg_picture_quality"], axis = 1).copy()
         dftest3 = dftest2.drop(["avg_picture_quality"], axis = 1).copy()
-        # dftrain3 = dftrain2.copy()
-        # dftest3 = dftest2.copy()
+        
         
         import lightgbm as lgb
         lgb_train = lgb.Dataset(dftrain3, label = ytrain)
@@ -831,6 +884,17 @@ class modeloMeli:
     
     @staticmethod 
     def predict_meli(x:dict):
+        """
+        Function that, given a dictionary with an item's information, 
+        predicts if the item is new or used.
+        Parameters
+        ----------
+        x : dict
+            Dictionary with the item's information
+        Returns
+        -------
+        The class of the item (new or used)
+        """
         
         
         #convert dictionary to dataframe
