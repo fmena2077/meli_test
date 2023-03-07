@@ -1,0 +1,3 @@
+#!C:\Users\franc\projects\meliwin_git\Scripts\python.exe
+from numba.pycc import main
+main()
