@@ -1,4 +1,4 @@
-    # Mercado Libre's Data Science Challenge
+# Mercado Libre's Data Science Challenge
 Author: Francisco Mena
 
 This is the repository for Mercado Libre's Data Science challenge
